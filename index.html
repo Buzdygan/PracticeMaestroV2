@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practice Maestro - Musical Exercise Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎼 Practice Maestro</h1>
+            <nav>
+                <button id="todayBtn" class="nav-btn active">Today's Practice</button>
+                <button id="manageBtn" class="nav-btn">Manage Items</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Today's Practice View -->
+            <div id="todayView" class="view">
+                <div class="view-header">
+                    <h2>Today's Practice - <span id="currentDate"></span></h2>
+                    <div class="stats">
+                        <span id="completedCount">0</span> / <span id="totalCount">0</span> completed
+                    </div>
+                </div>
+                <div id="todayList" class="practice-list">
+                    <!-- Today's items will be populated here -->
+                </div>
+            </div>
+
+            <!-- Management View -->
+            <div id="manageView" class="view hidden">
+                <div class="view-header">
+                    <h2>Manage Practice Items</h2>
+                    <button id="addItemBtn" class="btn btn-primary">+ Add New Item</button>
+                </div>
+                
+                <div class="categories-section">
+                    <h3>Categories</h3>
+                    <div id="categoriesList" class="categories-list">
+                        <!-- Categories will be populated here -->
+                    </div>
+                    <div class="add-category">
+                        <input type="text" id="newCategoryInput" placeholder="New category name">
+                        <button id="addCategoryBtn" class="btn btn-small">Add Category</button>
+                    </div>
+                </div>
+
+                <div class="items-section">
+                    <h3>Practice Items</h3>
+                    <div class="filter-controls">
+                        <select id="categoryFilter">
+                            <option value="">All Categories</option>
+                        </select>
+                        <select id="statusFilter">
+                            <option value="">All Items</option>
+                            <option value="active">Active</option>
+                            <option value="paused">Paused</option>
+                        </select>
+                    </div>
+                    <div id="itemsList" class="items-list">
+                        <!-- Items will be populated here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Add/Edit Item Modal -->
+        <div id="itemModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3 id="modalTitle">Add New Item</h3>
+                    <button id="closeModal" class="close-btn">&times;</button>
+                </div>
+                <form id="itemForm">
+                    <div class="form-group">
+                        <label for="itemName">Item Name*</label>
+                        <input type="text" id="itemName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="itemCategory">Category</label>
+                        <select id="itemCategory" required>
+                            <option value="">Select Category</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="itemDescription">Description</label>
+                        <textarea id="itemDescription" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="recurDays">Reappear after (days)</label>
+                        <input type="number" id="recurDays" min="1" max="365" value="7">
+                    </div>
+                    <div class="form-group">
+                        <label for="parentItem">Parent Item (optional)</label>
+                        <select id="parentItem">
+                            <option value="">None (Top-level item)</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Item</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Overlay for modals -->
+        <div id="overlay" class="overlay hidden"></div>
+    </div>
+
+    <script src="utils.js"></script>
+    <script src="storage.js"></script>
+    <script src="app.js"></script>
+</body>
+</html> 
