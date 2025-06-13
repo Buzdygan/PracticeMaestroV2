@@ -13,61 +13,17 @@
                 <h1>🎼 Practice Maestro</h1>
                 <div class="auth-section">
                     <div id="authContainer">
+                        <!-- Signed Out State - Collapsed by default -->
                         <div id="signedOutState">
-                            <div class="auth-tabs">
-                                <button id="googleAuthTab" class="auth-tab active">Google</button>
-                                <button id="emailAuthTab" class="auth-tab">Email</button>
-                            </div>
-                            
-                            <!-- Google Sign In -->
-                            <div id="googleAuthForm" class="auth-form">
-                                <button id="signInBtn" class="btn btn-auth">🔐 Sign In with Google</button>
-                            </div>
-                            
-                            <!-- Email/Password Sign In -->
-                            <div id="emailAuthForm" class="auth-form hidden">
-                                <div class="email-auth-toggle">
-                                    <button id="showSignInForm" class="auth-toggle-btn active">Sign In</button>
-                                    <button id="showSignUpForm" class="auth-toggle-btn">Sign Up</button>
-                                </div>
-                                
-                                <!-- Sign In Form -->
-                                <form id="emailSignInForm" class="email-auth-form">
-                                    <div class="form-group-small">
-                                        <input type="email" id="signInEmail" placeholder="Email" required>
-                                    </div>
-                                    <div class="form-group-small">
-                                        <input type="password" id="signInPassword" placeholder="Password" required>
-                                    </div>
-                                    <button type="submit" class="btn btn-auth">Sign In</button>
-                                    <button type="button" id="forgotPasswordBtn" class="link-btn">Forgot Password?</button>
-                                </form>
-                                
-                                <!-- Sign Up Form -->
-                                <form id="emailSignUpForm" class="email-auth-form hidden">
-                                    <div class="form-group-small">
-                                        <input type="email" id="signUpEmail" placeholder="Email" required>
-                                    </div>
-                                    <div class="form-group-small">
-                                        <input type="password" id="signUpPassword" placeholder="Password (min 6 characters)" required minlength="6">
-                                    </div>
-                                    <div class="form-group-small">
-                                        <input type="password" id="confirmPassword" placeholder="Confirm Password" required minlength="6">
-                                    </div>
-                                    <button type="submit" class="btn btn-auth">Create Account</button>
-                                </form>
-                            </div>
+                            <button id="signInToggleBtn" class="btn btn-auth">Sign In</button>
                         </div>
+                        
+                        <!-- Signed In State -->
                         <div id="signedInState" class="hidden">
                             <div class="user-info">
-                                <img id="userPhoto" class="user-avatar" src="" alt="User">
                                 <span id="userName" class="user-name"></span>
-                                <button id="signOutBtn" class="btn btn-auth btn-secondary">Sign Out</button>
                             </div>
                         </div>
-                    </div>
-                    <div id="syncStatus" class="sync-status hidden">
-                        <span id="syncIndicator" class="sync-indicator">📡 Syncing...</span>
                     </div>
                 </div>
             </div>
@@ -168,39 +124,61 @@
             </div>
         </div>
 
-        <!-- Data Migration Modal -->
-        <div id="migrationModal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>Welcome! Sync Your Data</h3>
-                </div>
-                <div class="modal-body" style="padding: 20px;">
-                    <p style="margin-bottom: 15px;">We found existing practice data on this device. Would you like to:</p>
-                    <div class="migration-options">
-                        <button id="uploadDataBtn" class="btn btn-primary" style="margin: 5px; width: 100%;">
-                            📤 Upload Local Data to Cloud
-                        </button>
-                        <button id="downloadDataBtn" class="btn btn-secondary" style="margin: 5px; width: 100%;">
-                            📥 Download Cloud Data (Replace Local)
-                        </button>
-                        <button id="skipMigrationBtn" class="btn btn-secondary" style="margin: 5px; width: 100%;">
-                            ⏭️ Skip (Start Fresh)
-                        </button>
-                    </div>
-                    <p style="font-size: 0.9rem; color: #666; margin-top: 15px;">
-                        You can always manage your data later in the settings.
-                    </p>
-                </div>
-            </div>
-        </div>
-
         <!-- Overlay for modals -->
         <div id="overlay" class="overlay hidden"></div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <!-- Auth Forms Container - MOVED HERE FOR STACKING CONTEXT -->
+    <div id="authFormsContainer" class="auth-forms-container hidden">
+        <div class="auth-tabs">
+            <button id="googleAuthTab" class="auth-tab active">Google</button>
+            <button id="emailAuthTab" class="auth-tab">Email</button>
+        </div>
+        
+        <!-- Google Sign In -->
+        <div id="googleAuthForm" class="auth-form">
+            <button id="signInBtn" class="btn btn-auth">🔐 Sign In with Google</button>
+        </div>
+        
+        <!-- Email/Password Sign In -->
+        <div id="emailAuthForm" class="auth-form hidden">
+            <div class="email-auth-toggle">
+                <button id="showSignInForm" class="auth-toggle-btn active">Sign In</button>
+                <button id="showSignUpForm" class="auth-toggle-btn">Sign Up</button>
+            </div>
+            
+            <!-- Sign In Form -->
+            <form id="emailSignInForm" class="email-auth-form">
+                <div class="form-group-small">
+                    <input type="email" id="signInEmail" placeholder="Email" required>
+                </div>
+                <div class="form-group-small">
+                    <input type="password" id="signInPassword" placeholder="Password" required>
+                </div>
+                <button type="submit" class="btn btn-auth">Sign In</button>
+                <button type="button" id="forgotPasswordBtn" class="link-btn">Forgot Password?</button>
+            </form>
+            
+            <!-- Sign Up Form -->
+            <form id="emailSignUpForm" class="email-auth-form hidden">
+                <div class="form-group-small">
+                    <input type="email" id="signUpEmail" placeholder="Email" required>
+                </div>
+                <div class="form-group-small">
+                    <input type="password" id="signUpPassword" placeholder="Password (min 6 characters)" required minlength="6">
+                </div>
+                <div class="form-group-small">
+                    <input type="password" id="confirmPassword" placeholder="Confirm Password" required minlength="6">
+                </div>
+                <button type="submit" class="btn btn-auth">Create Account</button>
+            </form>
+        </div>
+        
+        <button id="cancelAuthBtn" class="btn btn-secondary">Cancel</button>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
     <!-- App Scripts -->

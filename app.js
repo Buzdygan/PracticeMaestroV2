@@ -25,8 +25,10 @@ class PracticeMaestro {
         // Set current date
         document.getElementById('currentDate').textContent = formatDate(new Date());
         
-        // Setup sync status callbacks
-        this.firebaseStorage.onSyncStatusChange((status) => this.updateSyncStatus(status));
+        // Set initial auth UI state to be explicitly signed-out.
+        // This prevents the "Sign Out" button from flashing on page load.
+        document.getElementById('signedInState').classList.add('hidden');
+        document.getElementById('signedOutState').classList.remove('hidden');
         
         // Load initial view
         this.switchView('today');
@@ -55,10 +57,14 @@ class PracticeMaestro {
      * Handle user sign in
      */
     async handleSignIn(user) {
+        console.log('handleSignIn called for user:', user.email);
         this.user = user;
         this.isSignedIn = true;
         this.firebaseStorage.setUser(user);
         this.storage = this.firebaseStorage;
+        
+        // Hide auth forms on successful sign in
+        this.hideAuthForms();
         
         // Update UI
         this.updateAuthUI();
@@ -76,13 +82,13 @@ class PracticeMaestro {
      * Handle user sign out
      */
     handleSignOut() {
+        console.log("handleSignOut called. User is now signed out.");
         this.user = null;
         this.isSignedIn = false;
         this.storage = this.localStorage;
         
         // Update UI
         this.updateAuthUI();
-        this.updateSyncStatus('offline');
         
         // Reload current view with localStorage data
         this.loadCurrentView();
@@ -95,10 +101,22 @@ class PracticeMaestro {
      */
     async signOut() {
         try {
+            console.log('Attempting to sign out...');
+            
+            // Check if Firebase is available
+            if (typeof firebase === 'undefined' || !firebase.auth) {
+                console.log('Firebase not available, signing out locally');
+                this.handleSignOut();
+                return;
+            }
+            
             await firebase.auth().signOut();
+            console.log('Firebase sign out successful');
         } catch (error) {
             console.error('Sign out failed:', error);
             showToast('Sign out failed: ' + error.message, 'error');
+            // Fallback to local sign out
+            this.handleSignOut();
         }
     }
 
@@ -108,64 +126,29 @@ class PracticeMaestro {
     updateAuthUI() {
         const signedInState = document.getElementById('signedInState');
         const signedOutState = document.getElementById('signedOutState');
-        const syncStatus = document.getElementById('syncStatus');
+        
+        console.log('Updating auth UI state:', { 
+            isSignedIn: this.isSignedIn, 
+            hasUser: !!this.user,
+        });
         
         if (this.isSignedIn && this.user) {
             // Show signed in state
             signedInState.classList.remove('hidden');
             signedOutState.classList.add('hidden');
-            syncStatus.classList.remove('hidden');
             
             // Update user info
             const displayName = this.user.displayName || this.user.email.split('@')[0];
-            document.getElementById('userName').textContent = displayName;
-            
-            // Handle profile photo (Google users have photos, email users typically don't)
-            const photoURL = this.user.photoURL;
-            if (photoURL) {
-                document.getElementById('userPhoto').src = photoURL;
-            } else {
-                // Generate avatar for email users
-                const email = this.user.email || displayName;
-                document.getElementById('userPhoto').src = 
-                    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=667eea&color=fff&size=32`;
-            }
+            document.getElementById('userName').textContent = `Signed in as ${displayName}`;
         } else {
             // Show signed out state
             signedInState.classList.add('hidden');
             signedOutState.classList.remove('hidden');
-            syncStatus.classList.add('hidden');
         }
     }
 
     /**
-     * Update sync status indicator
-     */
-    updateSyncStatus(status) {
-        const indicator = document.getElementById('syncIndicator');
-        if (!indicator) return;
-        
-        // Remove all status classes
-        indicator.classList.remove('syncing', 'synced', 'offline');
-        
-        switch (status) {
-            case 'syncing':
-                indicator.textContent = '📡 Syncing...';
-                indicator.classList.add('syncing');
-                break;
-            case 'synced':
-                indicator.textContent = '✅ Synced';
-                indicator.classList.add('synced');
-                break;
-            case 'offline':
-                indicator.textContent = '📴 Offline';
-                indicator.classList.add('offline');
-                break;
-        }
-    }
-
-    /**
-     * Check if data migration is needed
+     * Check if data migration is needed - automatically sync with preference for remote data
      */
     async checkDataMigration() {
         try {
@@ -184,37 +167,18 @@ class PracticeMaestro {
             const hasCloudData = await this.firebaseStorage.hasExistingData();
             
             if (hasCloudData) {
-                // Show migration options
-                this.showMigrationModal();
+                // Automatically prefer remote data and download it
+                await this.downloadCloudData();
+                showToast('Synced with cloud data! 🔄', 'success');
             } else {
                 // Automatically upload local data
                 await this.uploadLocalData();
+                showToast('Local data uploaded to cloud! 📤', 'success');
             }
         } catch (error) {
-            console.error('Error checking data migration:', error);
+            console.error('Error during auto sync:', error);
+            showToast('Sync failed, using local data', 'warning');
         }
-    }
-
-    /**
-     * Show migration modal
-     */
-    showMigrationModal() {
-        const modal = document.getElementById('migrationModal');
-        const overlay = document.getElementById('overlay');
-        
-        modal.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-    }
-
-    /**
-     * Hide migration modal
-     */
-    hideMigrationModal() {
-        const modal = document.getElementById('migrationModal');
-        const overlay = document.getElementById('overlay');
-        
-        modal.classList.add('hidden');
-        overlay.classList.add('hidden');
     }
 
     /**
@@ -229,10 +193,9 @@ class PracticeMaestro {
             };
             
             await this.firebaseStorage.uploadLocalData(localData);
-            showToast('Local data uploaded to cloud! 📤', 'success');
         } catch (error) {
             console.error('Error uploading local data:', error);
-            showToast('Failed to upload local data', 'error');
+            throw error;
         }
     }
 
@@ -243,10 +206,9 @@ class PracticeMaestro {
         try {
             const cloudData = await this.firebaseStorage.exportData();
             await this.localStorage.importData(cloudData);
-            showToast('Cloud data downloaded! 📥', 'success');
         } catch (error) {
             console.error('Error downloading cloud data:', error);
-            showToast('Failed to download cloud data', 'error');
+            throw error;
         }
     }
 
@@ -269,6 +231,27 @@ class PracticeMaestro {
         document.getElementById('todayBtn').addEventListener('click', () => this.switchView('today'));
         document.getElementById('manageBtn').addEventListener('click', () => this.switchView('manage'));
 
+        // Authentication - Toggle
+        document.getElementById('signInToggleBtn').addEventListener('click', () => this.toggleAuthForms());
+        document.getElementById('cancelAuthBtn').addEventListener('click', () => this.hideAuthForms());
+        
+        // Close auth forms when clicking outside
+        document.addEventListener('click', (e) => {
+            const authContainer = document.getElementById('authFormsContainer');
+            const toggleBtn = document.getElementById('signInToggleBtn');
+            if (!authContainer.contains(e.target) && !toggleBtn.contains(e.target)) {
+                this.hideAuthForms();
+            }
+        });
+
+        // Reposition auth forms on window resize
+        window.addEventListener('resize', () => {
+            const container = document.getElementById('authFormsContainer');
+            if (!container.classList.contains('hidden')) {
+                this.hideAuthForms();
+            }
+        });
+
         // Authentication - Tabs
         document.getElementById('googleAuthTab').addEventListener('click', () => this.switchAuthTab('google'));
         document.getElementById('emailAuthTab').addEventListener('click', () => this.switchAuthTab('email'));
@@ -283,11 +266,6 @@ class PracticeMaestro {
         document.getElementById('emailSignInForm').addEventListener('submit', (e) => this.handleEmailSignIn(e));
         document.getElementById('emailSignUpForm').addEventListener('submit', (e) => this.handleEmailSignUp(e));
         document.getElementById('forgotPasswordBtn').addEventListener('click', () => this.handleForgotPassword());
-
-        // Migration modal
-        document.getElementById('uploadDataBtn').addEventListener('click', () => this.handleUploadData());
-        document.getElementById('downloadDataBtn').addEventListener('click', () => this.handleDownloadData());
-        document.getElementById('skipMigrationBtn').addEventListener('click', () => this.handleSkipMigration());
 
         // Today's practice
         document.getElementById('todayList').addEventListener('click', (e) => this.handleTodayListClick(e));
@@ -332,6 +310,33 @@ class PracticeMaestro {
     }
 
     // ============ AUTHENTICATION UI METHODS ============
+
+    /**
+     * Toggle auth forms visibility
+     */
+    toggleAuthForms() {
+        const container = document.getElementById('authFormsContainer');
+        const toggleBtn = document.getElementById('signInToggleBtn');
+        const isHidden = container.classList.contains('hidden');
+        
+        if (isHidden) {
+            // Position the container relative to the toggle button
+            const btnRect = toggleBtn.getBoundingClientRect();
+            container.style.top = (btnRect.bottom + 5) + 'px';
+            container.style.right = (window.innerWidth - btnRect.right) + 'px';
+            
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+        }
+    }
+
+    /**
+     * Hide auth forms
+     */
+    hideAuthForms() {
+        document.getElementById('authFormsContainer').classList.add('hidden');
+    }
 
     /**
      * Switch authentication tab
@@ -488,25 +493,6 @@ class PracticeMaestro {
         }
     }
 
-    // ============ MIGRATION HANDLERS ============
-
-    async handleUploadData() {
-        this.hideMigrationModal();
-        await this.uploadLocalData();
-        this.loadCurrentView();
-    }
-
-    async handleDownloadData() {
-        this.hideMigrationModal();
-        await this.downloadCloudData();
-        this.loadCurrentView();
-    }
-
-    handleSkipMigration() {
-        this.hideMigrationModal();
-        showToast('Starting fresh with cloud storage', 'info');
-    }
-
     /**
      * Switch between views
      */
@@ -540,7 +526,7 @@ class PracticeMaestro {
             document.getElementById('totalCount').textContent = stats.total;
 
             // Render items
-            this.renderTodaysList(todaysItems);
+            await this.renderTodaysList(todaysItems);
         } catch (error) {
             console.error('Error loading today\'s view:', error);
             showToast('Error loading practice items', 'error');
@@ -550,7 +536,7 @@ class PracticeMaestro {
     /**
      * Render today's practice list
      */
-    renderTodaysList(items) {
+    async renderTodaysList(items) {
         const container = document.getElementById('todayList');
         
         if (items.length === 0) {
@@ -564,17 +550,19 @@ class PracticeMaestro {
             return;
         }
 
-        const itemsHtml = items.map(item => {
-            return this.renderPracticeItem(item);
-        }).join('');
+        const itemsHtml = await Promise.all(items.map(async item => {
+            return await this.renderPracticeItem(item);
+        }));
 
-        container.innerHTML = itemsHtml;
+        container.innerHTML = itemsHtml.join('');
     }
 
     /**
      * Render a single practice item
      */
-    renderPracticeItem(item) {
+    async renderPracticeItem(item) {
+        const subItemsHtml = await this.renderSubItemsForToday(item.id);
+        
         return `
             <div class="practice-item ${item.isCompleted ? 'completed' : ''}" data-item-id="${item.id}">
                 <div class="practice-item-header">
@@ -594,7 +582,7 @@ class PracticeMaestro {
                         </button>
                     </div>
                 </div>
-                ${this.renderSubItemsForToday(item.id)}
+                ${subItemsHtml}
             </div>
         `;
     }
@@ -1031,7 +1019,6 @@ class PracticeMaestro {
      */
     closeModal() {
         document.getElementById('itemModal').classList.add('hidden');
-        document.getElementById('migrationModal').classList.add('hidden');
         document.getElementById('overlay').classList.add('hidden');
         this.editingItemId = null;
     }
