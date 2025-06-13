@@ -9,7 +9,26 @@
 <body>
     <div class="container">
         <header>
-            <h1>🎼 Practice Maestro</h1>
+            <div class="header-top">
+                <h1>🎼 Practice Maestro</h1>
+                <div class="auth-section">
+                    <div id="authContainer">
+                        <div id="signedOutState">
+                            <button id="signInBtn" class="btn btn-auth">🔐 Sign In for Sync</button>
+                        </div>
+                        <div id="signedInState" class="hidden">
+                            <div class="user-info">
+                                <img id="userPhoto" class="user-avatar" src="" alt="User">
+                                <span id="userName" class="user-name"></span>
+                                <button id="signOutBtn" class="btn btn-auth btn-secondary">Sign Out</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="syncStatus" class="sync-status hidden">
+                        <span id="syncIndicator" class="sync-indicator">📡 Syncing...</span>
+                    </div>
+                </div>
+            </div>
             <nav>
                 <button id="todayBtn" class="nav-btn active">Today's Practice</button>
                 <button id="manageBtn" class="nav-btn">Manage Items</button>
@@ -107,12 +126,45 @@
             </div>
         </div>
 
+        <!-- Data Migration Modal -->
+        <div id="migrationModal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Welcome! Sync Your Data</h3>
+                </div>
+                <div class="modal-body" style="padding: 20px;">
+                    <p style="margin-bottom: 15px;">We found existing practice data on this device. Would you like to:</p>
+                    <div class="migration-options">
+                        <button id="uploadDataBtn" class="btn btn-primary" style="margin: 5px; width: 100%;">
+                            📤 Upload Local Data to Cloud
+                        </button>
+                        <button id="downloadDataBtn" class="btn btn-secondary" style="margin: 5px; width: 100%;">
+                            📥 Download Cloud Data (Replace Local)
+                        </button>
+                        <button id="skipMigrationBtn" class="btn btn-secondary" style="margin: 5px; width: 100%;">
+                            ⏭️ Skip (Start Fresh)
+                        </button>
+                    </div>
+                    <p style="font-size: 0.9rem; color: #666; margin-top: 15px;">
+                        You can always manage your data later in the settings.
+                    </p>
+                </div>
+            </div>
+        </div>
+
         <!-- Overlay for modals -->
         <div id="overlay" class="overlay hidden"></div>
     </div>
 
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <!-- App Scripts -->
     <script src="utils.js"></script>
     <script src="storage.js"></script>
+    <script src="firebase-storage.js"></script>
     <script src="app.js"></script>
 </body>
 </html> 

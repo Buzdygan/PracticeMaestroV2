@@ -30,12 +30,90 @@ header {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
+.header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
 header h1 {
     font-size: 2rem;
     font-weight: 700;
     color: #4a5568;
-    margin-bottom: 15px;
     text-align: center;
+    flex: 1;
+}
+
+/* Authentication Section */
+.auth-section {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 10px;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: #f7fafc;
+    border-radius: 8px;
+}
+
+.user-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid #e2e8f0;
+}
+
+.user-name {
+    font-weight: 500;
+    color: #4a5568;
+    font-size: 0.9rem;
+}
+
+.btn-auth {
+    font-size: 0.9rem;
+    padding: 8px 16px;
+}
+
+.sync-status {
+    text-align: right;
+}
+
+.sync-indicator {
+    font-size: 0.8rem;
+    color: #666;
+    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+.sync-indicator.syncing {
+    background: #e6f3ff;
+    color: #0066cc;
+    animation: pulse 1.5s infinite;
+}
+
+.sync-indicator.synced {
+    background: #e6ffe6;
+    color: #00aa00;
+}
+
+.sync-indicator.offline {
+    background: #ffe6e6;
+    color: #cc0000;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
 
 nav {
@@ -422,6 +500,16 @@ main {
     padding: 20px;
 }
 
+.modal-body {
+    padding: 20px;
+}
+
+.migration-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .form-group {
     margin-bottom: 20px;
 }
@@ -484,10 +572,46 @@ main {
     font-weight: 500;
 }
 
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #667eea;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: translate(-50%, -50%) rotate(0deg); }
+    100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
 /* Responsive design */
 @media (max-width: 768px) {
     .container {
         padding: 10px;
+    }
+    
+    .header-top {
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+    }
+    
+    .auth-section {
+        align-items: center;
+        width: 100%;
     }
     
     header h1 {
@@ -542,5 +666,16 @@ main {
     
     .add-category input {
         min-width: auto;
+    }
+    
+    .user-info {
+        flex-direction: column;
+        text-align: center;
+        gap: 8px;
+    }
+    
+    .migration-options button {
+        font-size: 0.9rem;
+        padding: 12px;
     }
 } 
