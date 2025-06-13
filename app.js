@@ -91,6 +91,18 @@ class PracticeMaestro {
     }
 
     /**
+     * Sign out from Firebase
+     */
+    async signOut() {
+        try {
+            await firebase.auth().signOut();
+        } catch (error) {
+            console.error('Sign out failed:', error);
+            showToast('Sign out failed: ' + error.message, 'error');
+        }
+    }
+
+    /**
      * Update authentication UI
      */
     updateAuthUI() {
@@ -105,9 +117,19 @@ class PracticeMaestro {
             syncStatus.classList.remove('hidden');
             
             // Update user info
-            document.getElementById('userName').textContent = this.user.displayName || this.user.email;
-            document.getElementById('userPhoto').src = this.user.photoURL || 
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(this.user.displayName || this.user.email)}&background=667eea&color=fff`;
+            const displayName = this.user.displayName || this.user.email.split('@')[0];
+            document.getElementById('userName').textContent = displayName;
+            
+            // Handle profile photo (Google users have photos, email users typically don't)
+            const photoURL = this.user.photoURL;
+            if (photoURL) {
+                document.getElementById('userPhoto').src = photoURL;
+            } else {
+                // Generate avatar for email users
+                const email = this.user.email || displayName;
+                document.getElementById('userPhoto').src = 
+                    `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=667eea&color=fff&size=32`;
+            }
         } else {
             // Show signed out state
             signedInState.classList.add('hidden');
@@ -247,9 +269,20 @@ class PracticeMaestro {
         document.getElementById('todayBtn').addEventListener('click', () => this.switchView('today'));
         document.getElementById('manageBtn').addEventListener('click', () => this.switchView('manage'));
 
-        // Authentication
-        document.getElementById('signInBtn').addEventListener('click', () => this.signIn());
+        // Authentication - Tabs
+        document.getElementById('googleAuthTab').addEventListener('click', () => this.switchAuthTab('google'));
+        document.getElementById('emailAuthTab').addEventListener('click', () => this.switchAuthTab('email'));
+
+        // Authentication - Google
+        document.getElementById('signInBtn').addEventListener('click', () => this.signInWithGoogle());
         document.getElementById('signOutBtn').addEventListener('click', () => this.signOut());
+
+        // Authentication - Email/Password
+        document.getElementById('showSignInForm').addEventListener('click', () => this.showEmailForm('signin'));
+        document.getElementById('showSignUpForm').addEventListener('click', () => this.showEmailForm('signup'));
+        document.getElementById('emailSignInForm').addEventListener('submit', (e) => this.handleEmailSignIn(e));
+        document.getElementById('emailSignUpForm').addEventListener('submit', (e) => this.handleEmailSignUp(e));
+        document.getElementById('forgotPasswordBtn').addEventListener('click', () => this.handleForgotPassword());
 
         // Migration modal
         document.getElementById('uploadDataBtn').addEventListener('click', () => this.handleUploadData());
@@ -288,7 +321,7 @@ class PracticeMaestro {
     /**
      * Sign in with Google
      */
-    async signIn() {
+    async signInWithGoogle() {
         try {
             const provider = new firebase.auth.GoogleAuthProvider();
             await firebase.auth().signInWithPopup(provider);
@@ -298,15 +331,160 @@ class PracticeMaestro {
         }
     }
 
+    // ============ AUTHENTICATION UI METHODS ============
+
     /**
-     * Sign out
+     * Switch authentication tab
      */
-    async signOut() {
+    switchAuthTab(tab) {
+        // Update tab buttons
+        document.querySelectorAll('.auth-tab').forEach(btn => btn.classList.remove('active'));
+        document.getElementById(tab + 'AuthTab').classList.add('active');
+
+        // Show/hide forms
+        document.getElementById('googleAuthForm').classList.toggle('hidden', tab !== 'google');
+        document.getElementById('emailAuthForm').classList.toggle('hidden', tab !== 'email');
+    }
+
+    /**
+     * Show email form (signin or signup)
+     */
+    showEmailForm(form) {
+        // Update toggle buttons
+        document.querySelectorAll('.auth-toggle-btn').forEach(btn => btn.classList.remove('active'));
+        document.getElementById('show' + (form === 'signin' ? 'SignIn' : 'SignUp') + 'Form').classList.add('active');
+
+        // Show/hide forms
+        document.getElementById('emailSignInForm').classList.toggle('hidden', form !== 'signin');
+        document.getElementById('emailSignUpForm').classList.toggle('hidden', form !== 'signup');
+
+        // Clear forms
+        document.getElementById('emailSignInForm').reset();
+        document.getElementById('emailSignUpForm').reset();
+    }
+
+    /**
+     * Handle email sign in
+     */
+    async handleEmailSignIn(e) {
+        e.preventDefault();
+        
+        const email = document.getElementById('signInEmail').value.trim();
+        const password = document.getElementById('signInPassword').value;
+
+        if (!email || !password) {
+            showToast('Please enter both email and password', 'error');
+            return;
+        }
+
         try {
-            await firebase.auth().signOut();
+            await firebase.auth().signInWithEmailAndPassword(email, password);
+            showToast('Signed in successfully! 🎵', 'success');
         } catch (error) {
-            console.error('Sign out failed:', error);
-            showToast('Sign out failed: ' + error.message, 'error');
+            console.error('Email sign in failed:', error);
+            let message = 'Sign in failed';
+            
+            switch (error.code) {
+                case 'auth/user-not-found':
+                    message = 'No account found with this email';
+                    break;
+                case 'auth/wrong-password':
+                    message = 'Incorrect password';
+                    break;
+                case 'auth/invalid-email':
+                    message = 'Invalid email address';
+                    break;
+                case 'auth/too-many-requests':
+                    message = 'Too many failed attempts. Try again later';
+                    break;
+                default:
+                    message = error.message;
+            }
+            
+            showToast(message, 'error');
+        }
+    }
+
+    /**
+     * Handle email sign up
+     */
+    async handleEmailSignUp(e) {
+        e.preventDefault();
+        
+        const email = document.getElementById('signUpEmail').value.trim();
+        const password = document.getElementById('signUpPassword').value;
+        const confirmPassword = document.getElementById('confirmPassword').value;
+
+        if (!email || !password || !confirmPassword) {
+            showToast('Please fill in all fields', 'error');
+            return;
+        }
+
+        if (password !== confirmPassword) {
+            showToast('Passwords do not match', 'error');
+            return;
+        }
+
+        if (password.length < 6) {
+            showToast('Password must be at least 6 characters', 'error');
+            return;
+        }
+
+        try {
+            await firebase.auth().createUserWithEmailAndPassword(email, password);
+            showToast('Account created successfully! 🎉', 'success');
+        } catch (error) {
+            console.error('Email sign up failed:', error);
+            let message = 'Sign up failed';
+            
+            switch (error.code) {
+                case 'auth/email-already-in-use':
+                    message = 'An account with this email already exists';
+                    break;
+                case 'auth/invalid-email':
+                    message = 'Invalid email address';
+                    break;
+                case 'auth/weak-password':
+                    message = 'Password is too weak';
+                    break;
+                default:
+                    message = error.message;
+            }
+            
+            showToast(message, 'error');
+        }
+    }
+
+    /**
+     * Handle forgot password
+     */
+    async handleForgotPassword() {
+        const email = document.getElementById('signInEmail').value.trim();
+        
+        if (!email) {
+            showToast('Please enter your email address first', 'error');
+            return;
+        }
+
+        try {
+            await firebase.auth().sendPasswordResetEmail(email);
+            showToast('Password reset email sent! Check your inbox 📧', 'success');
+        } catch (error) {
+            console.error('Password reset failed:', error);
+            let message = 'Failed to send reset email';
+            
+            switch (error.code) {
+                case 'auth/user-not-found':
+                    message = 'No account found with this email';
+                    break;
+                case 'auth/invalid-email':
+                    message = 'Invalid email address';
+                    break;
+                default:
+                    message = error.message;
+            }
+            
+            showToast(message, 'error');
         }
     }
 

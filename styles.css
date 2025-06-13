@@ -53,6 +53,126 @@ header h1 {
     flex-direction: column;
     align-items: flex-end;
     gap: 10px;
+    min-width: 280px;
+}
+
+.auth-tabs {
+    display: flex;
+    background: #f1f5f9;
+    border-radius: 8px;
+    padding: 4px;
+    margin-bottom: 10px;
+}
+
+.auth-tab {
+    background: none;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    color: #64748b;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+}
+
+.auth-tab:hover {
+    color: #475569;
+}
+
+.auth-tab.active {
+    background: white;
+    color: #667eea;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.auth-form {
+    min-width: 280px;
+}
+
+.auth-form.hidden {
+    display: none;
+}
+
+/* Email Authentication */
+.email-auth-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 15px;
+    background: #f8fafc;
+    border-radius: 6px;
+    padding: 3px;
+}
+
+.auth-toggle-btn {
+    background: none;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: #64748b;
+    transition: all 0.2s ease;
+    flex: 1;
+}
+
+.auth-toggle-btn:hover {
+    color: #475569;
+}
+
+.auth-toggle-btn.active {
+    background: white;
+    color: #667eea;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.email-auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.email-auth-form.hidden {
+    display: none;
+}
+
+.form-group-small {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group-small input {
+    padding: 10px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    transition: border-color 0.3s ease;
+}
+
+.form-group-small input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.form-group-small input::placeholder {
+    color: #94a3b8;
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    font-size: 0.8rem;
+    text-decoration: underline;
+    padding: 4px 0;
+    transition: color 0.2s ease;
+}
+
+.link-btn:hover {
+    color: #5a67d8;
 }
 
 .user-info {
@@ -612,6 +732,31 @@ main {
     .auth-section {
         align-items: center;
         width: 100%;
+        min-width: auto;
+    }
+    
+    .auth-form {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .auth-tabs {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .auth-tab {
+        flex: 1;
+        text-align: center;
+    }
+    
+    .email-auth-toggle {
+        width: 100%;
+    }
+    
+    .form-group-small input {
+        width: 100%;
+        box-sizing: border-box;
     }
     
     header h1 {

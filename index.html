@@ -14,7 +14,49 @@
                 <div class="auth-section">
                     <div id="authContainer">
                         <div id="signedOutState">
-                            <button id="signInBtn" class="btn btn-auth">🔐 Sign In for Sync</button>
+                            <div class="auth-tabs">
+                                <button id="googleAuthTab" class="auth-tab active">Google</button>
+                                <button id="emailAuthTab" class="auth-tab">Email</button>
+                            </div>
+                            
+                            <!-- Google Sign In -->
+                            <div id="googleAuthForm" class="auth-form">
+                                <button id="signInBtn" class="btn btn-auth">🔐 Sign In with Google</button>
+                            </div>
+                            
+                            <!-- Email/Password Sign In -->
+                            <div id="emailAuthForm" class="auth-form hidden">
+                                <div class="email-auth-toggle">
+                                    <button id="showSignInForm" class="auth-toggle-btn active">Sign In</button>
+                                    <button id="showSignUpForm" class="auth-toggle-btn">Sign Up</button>
+                                </div>
+                                
+                                <!-- Sign In Form -->
+                                <form id="emailSignInForm" class="email-auth-form">
+                                    <div class="form-group-small">
+                                        <input type="email" id="signInEmail" placeholder="Email" required>
+                                    </div>
+                                    <div class="form-group-small">
+                                        <input type="password" id="signInPassword" placeholder="Password" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-auth">Sign In</button>
+                                    <button type="button" id="forgotPasswordBtn" class="link-btn">Forgot Password?</button>
+                                </form>
+                                
+                                <!-- Sign Up Form -->
+                                <form id="emailSignUpForm" class="email-auth-form hidden">
+                                    <div class="form-group-small">
+                                        <input type="email" id="signUpEmail" placeholder="Email" required>
+                                    </div>
+                                    <div class="form-group-small">
+                                        <input type="password" id="signUpPassword" placeholder="Password (min 6 characters)" required minlength="6">
+                                    </div>
+                                    <div class="form-group-small">
+                                        <input type="password" id="confirmPassword" placeholder="Confirm Password" required minlength="6">
+                                    </div>
+                                    <button type="submit" class="btn btn-auth">Create Account</button>
+                                </form>
+                            </div>
                         </div>
                         <div id="signedInState" class="hidden">
                             <div class="user-info">

@@ -19,11 +19,20 @@ A simple, serverless web application for tracking musical practice exercises. Bu
 
 ### Sign In Options
 - **Guest Mode**: Use without signing in (localStorage only)
-- **Google Sign-In**: Full cross-device sync with Firebase
+- **Google Sign-In**: Quick sign-in with your Google account
+- **Email/Password**: Create an account with email and password
+- **Flexible Authentication**: Switch between Google and email tabs easily
+
+### Authentication Features
+- **Tabbed Interface**: Clean tabs to switch between Google and email authentication
+- **Account Creation**: Sign up with email and password directly in the app
+- **Password Reset**: Forgot password? Reset it via email
+- **Secure Authentication**: All authentication handled by Firebase
+- **Cross-Device Sync**: All sign-in methods provide full device synchronization
 
 ### Data Storage
 - **Signed Out**: Data stored locally in your browser
-- **Signed In**: Data synced to the cloud and available on all devices
+- **Signed In**: Data synced to the cloud and available on all devices (any sign-in method)
 - **Offline Support**: Works offline, syncs when back online
 
 ### Data Migration
