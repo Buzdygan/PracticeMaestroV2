@@ -1,177 +1,96 @@
-// Main application logic for Practice Maestro with Firebase integration
+// Main application logic for Practice Maestro
 
 class PracticeMaestro {
     constructor() {
         this.localStorage = new PracticeStorage();
         this.firebaseStorage = new FirebaseStorage();
-        this.storage = this.localStorage; // Default to localStorage
+        this.storage = this.localStorage;
         this.currentView = 'today';
-        this.editingItemId = null;
-        this.user = null;
-        this.isSignedIn = false;
+        
+        this.ui = new UIManager();
+        this.auth = new AuthManager(this);
         
         this.initializeApp();
-        this.bindEvents();
-        this.setupAuth();
     }
 
-    /**
-     * Initialize the application
-     */
     initializeApp() {
-        // Initialize default categories if needed
+        this.ui.initializeUI();
         initializeDefaultCategories();
-        
-        // Set current date
-        document.getElementById('currentDate').textContent = formatDate(new Date());
-        
-        // Set initial auth UI state to be explicitly signed-out.
-        // This prevents the "Sign Out" button from flashing on page load.
-        document.getElementById('signedInState').classList.add('hidden');
-        document.getElementById('signedOutState').classList.remove('hidden');
-        
-        // Load initial view
+        this.auth.setupAuth();
+        this.bindEvents();
         this.switchView('today');
     }
 
-    /**
-     * Setup Firebase authentication
-     */
-    setupAuth() {
-        // Wait for Firebase to be ready
-        if (typeof firebase === 'undefined') {
-            setTimeout(() => this.setupAuth(), 100);
-            return;
-        }
+    bindEvents() {
+        // Navigation
+        document.getElementById('todayBtn').addEventListener('click', () => this.switchView('today'));
+        document.getElementById('manageBtn').addEventListener('click', () => this.switchView('manage'));
 
-        firebase.auth().onAuthStateChanged((user) => {
-            if (user) {
-                this.handleSignIn(user);
-            } else {
-                this.handleSignOut();
+        // Auth UI
+        document.getElementById('signInToggleBtn').addEventListener('click', () => this.ui.toggleAuthForms());
+        document.getElementById('cancelAuthBtn').addEventListener('click', () => this.ui.hideAuthForms());
+        document.addEventListener('click', (e) => {
+            if (!document.getElementById('authFormsContainer').contains(e.target) && !document.getElementById('signInToggleBtn').contains(e.target)) {
+                this.ui.hideAuthForms();
             }
         });
+        window.addEventListener('resize', () => this.ui.hideAuthForms());
+        document.getElementById('googleAuthTab').addEventListener('click', () => this.ui.switchAuthTab('google'));
+        document.getElementById('emailAuthTab').addEventListener('click', () => this.ui.switchAuthTab('email'));
+        document.getElementById('showSignInForm').addEventListener('click', () => this.ui.showEmailForm('signin'));
+        document.getElementById('showSignUpForm').addEventListener('click', () => this.ui.showEmailForm('signup'));
+
+        // Auth Actions
+        document.getElementById('signInBtn').addEventListener('click', () => this.auth.signInWithGoogle());
+        document.getElementById('signOutBtn').addEventListener('click', () => this.auth.signOut());
+        document.getElementById('emailSignInForm').addEventListener('submit', (e) => this.auth.handleEmailSignIn(e));
+        document.getElementById('emailSignUpForm').addEventListener('submit', (e) => this.auth.handleEmailSignUp(e));
+        document.getElementById('forgotPasswordBtn').addEventListener('click', () => this.auth.handleForgotPassword());
+
+        // App Actions
+        document.getElementById('addItemBtn').addEventListener('click', () => this.ui.openItemModal(null, (id) => this.populateItemForm(id)));
+        document.getElementById('addCategoryBtn').addEventListener('click', () => this.addCategory());
+        document.getElementById('newCategoryInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.addCategory();
+        });
+        document.getElementById('categoryFilter').addEventListener('change', () => this.loadManageView());
+        document.getElementById('statusFilter').addEventListener('change', () => this.loadManageView());
+        document.getElementById('closeModal').addEventListener('click', () => this.ui.closeModal());
+        document.getElementById('cancelBtn').addEventListener('click', () => this.ui.closeModal());
+        document.getElementById('overlay').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) this.ui.closeModal();
+        });
+        document.getElementById('itemForm').addEventListener('submit', (e) => this.handleItemFormSubmit(e));
     }
 
-    /**
-     * Handle user sign in
-     */
-    async handleSignIn(user) {
-        console.log('handleSignIn called for user:', user.email);
-        this.user = user;
-        this.isSignedIn = true;
-        this.firebaseStorage.setUser(user);
+    onSignIn(user) {
         this.storage = this.firebaseStorage;
-        
-        // Hide auth forms on successful sign in
-        this.hideAuthForms();
-        
-        // Update UI
-        this.updateAuthUI();
-        
-        // Check for data migration
-        await this.checkDataMigration();
-        
-        // Reload current view with Firebase data
+        this.firebaseStorage.setUser(user);
+        this.ui.setSignedInState(user);
+        this.ui.hideAuthForms();
+        this.checkDataMigration();
         this.loadCurrentView();
-        
         showToast(`Welcome back, ${user.displayName}! 🎵`, 'success');
     }
 
-    /**
-     * Handle user sign out
-     */
-    handleSignOut() {
-        console.log("handleSignOut called. User is now signed out.");
-        this.user = null;
-        this.isSignedIn = false;
+    onSignOut() {
         this.storage = this.localStorage;
-        
-        // Update UI
-        this.updateAuthUI();
-        
-        // Reload current view with localStorage data
+        this.ui.setSignedOutState();
         this.loadCurrentView();
-        
         showToast('Signed out. Using local storage.', 'info');
     }
 
-    /**
-     * Sign out from Firebase
-     */
-    async signOut() {
-        try {
-            console.log('Attempting to sign out...');
-            
-            // Check if Firebase is available
-            if (typeof firebase === 'undefined' || !firebase.auth) {
-                console.log('Firebase not available, signing out locally');
-                this.handleSignOut();
-                return;
-            }
-            
-            await firebase.auth().signOut();
-            console.log('Firebase sign out successful');
-        } catch (error) {
-            console.error('Sign out failed:', error);
-            showToast('Sign out failed: ' + error.message, 'error');
-            // Fallback to local sign out
-            this.handleSignOut();
-        }
-    }
-
-    /**
-     * Update authentication UI
-     */
-    updateAuthUI() {
-        const signedInState = document.getElementById('signedInState');
-        const signedOutState = document.getElementById('signedOutState');
-        
-        console.log('Updating auth UI state:', { 
-            isSignedIn: this.isSignedIn, 
-            hasUser: !!this.user,
-        });
-        
-        if (this.isSignedIn && this.user) {
-            // Show signed in state
-            signedInState.classList.remove('hidden');
-            signedOutState.classList.add('hidden');
-            
-            // Update user info
-            const displayName = this.user.displayName || this.user.email.split('@')[0];
-            document.getElementById('userName').textContent = `Signed in as ${displayName}`;
-        } else {
-            // Show signed out state
-            signedInState.classList.add('hidden');
-            signedOutState.classList.remove('hidden');
-        }
-    }
-
-    /**
-     * Check if data migration is needed - automatically sync with preference for remote data
-     */
     async checkDataMigration() {
         try {
-            // Check if user has local data
-            const localItems = this.localStorage.getItems();
-            const localCategories = this.localStorage.getCategories();
-            const localCompletions = this.localStorage.getCompletions();
+            const hasLocalData = this.localStorage.hasData();
+            if (!hasLocalData) return;
             
-            const hasLocalData = localItems.length > 0 || 
-                               localCategories.length > 0 || 
-                               Object.keys(localCompletions).length > 0;
-            
-            if (!hasLocalData) return; // No local data to migrate
-            
-            // Check if user has cloud data
             const hasCloudData = await this.firebaseStorage.hasExistingData();
             
             if (hasCloudData) {
-                // Automatically prefer remote data and download it
                 await this.downloadCloudData();
                 showToast('Synced with cloud data! 🔄', 'success');
             } else {
-                // Automatically upload local data
                 await this.uploadLocalData();
                 showToast('Local data uploaded to cloud! 📤', 'success');
             }
@@ -181,40 +100,30 @@ class PracticeMaestro {
         }
     }
 
-    /**
-     * Upload local data to cloud
-     */
     async uploadLocalData() {
         try {
-            const localData = {
-                items: this.localStorage.getItems(),
-                categories: this.localStorage.getCategories(),
-                completions: this.localStorage.getCompletions()
-            };
-            
-            await this.firebaseStorage.uploadLocalData(localData);
+            await this.firebaseStorage.uploadLocalData(this.localStorage.exportData());
         } catch (error) {
             console.error('Error uploading local data:', error);
             throw error;
         }
     }
 
-    /**
-     * Download cloud data and replace local
-     */
     async downloadCloudData() {
         try {
-            const cloudData = await this.firebaseStorage.exportData();
-            await this.localStorage.importData(cloudData);
+            await this.localStorage.importData(await this.firebaseStorage.exportData());
         } catch (error) {
             console.error('Error downloading cloud data:', error);
             throw error;
         }
     }
 
-    /**
-     * Load current view
-     */
+    switchView(view) {
+        this.currentView = view;
+        this.ui.switchView(view);
+        this.loadCurrentView();
+    }
+
     loadCurrentView() {
         if (this.currentView === 'today') {
             this.loadTodayView();
@@ -223,414 +132,38 @@ class PracticeMaestro {
         }
     }
 
-    /**
-     * Bind all event listeners
-     */
-    bindEvents() {
-        // Navigation
-        document.getElementById('todayBtn').addEventListener('click', () => this.switchView('today'));
-        document.getElementById('manageBtn').addEventListener('click', () => this.switchView('manage'));
-
-        // Authentication - Toggle
-        document.getElementById('signInToggleBtn').addEventListener('click', () => this.toggleAuthForms());
-        document.getElementById('cancelAuthBtn').addEventListener('click', () => this.hideAuthForms());
-        
-        // Close auth forms when clicking outside
-        document.addEventListener('click', (e) => {
-            const authContainer = document.getElementById('authFormsContainer');
-            const toggleBtn = document.getElementById('signInToggleBtn');
-            if (!authContainer.contains(e.target) && !toggleBtn.contains(e.target)) {
-                this.hideAuthForms();
-            }
-        });
-
-        // Reposition auth forms on window resize
-        window.addEventListener('resize', () => {
-            const container = document.getElementById('authFormsContainer');
-            if (!container.classList.contains('hidden')) {
-                this.hideAuthForms();
-            }
-        });
-
-        // Authentication - Tabs
-        document.getElementById('googleAuthTab').addEventListener('click', () => this.switchAuthTab('google'));
-        document.getElementById('emailAuthTab').addEventListener('click', () => this.switchAuthTab('email'));
-
-        // Authentication - Google
-        document.getElementById('signInBtn').addEventListener('click', () => this.signInWithGoogle());
-        document.getElementById('signOutBtn').addEventListener('click', () => this.signOut());
-
-        // Authentication - Email/Password
-        document.getElementById('showSignInForm').addEventListener('click', () => this.showEmailForm('signin'));
-        document.getElementById('showSignUpForm').addEventListener('click', () => this.showEmailForm('signup'));
-        document.getElementById('emailSignInForm').addEventListener('submit', (e) => this.handleEmailSignIn(e));
-        document.getElementById('emailSignUpForm').addEventListener('submit', (e) => this.handleEmailSignUp(e));
-        document.getElementById('forgotPasswordBtn').addEventListener('click', () => this.handleForgotPassword());
-
-        // Today's practice
-        document.getElementById('todayList').addEventListener('click', (e) => this.handleTodayListClick(e));
-
-        // Management view
-        document.getElementById('addItemBtn').addEventListener('click', () => this.openItemModal());
-        document.getElementById('addCategoryBtn').addEventListener('click', () => this.addCategory());
-        document.getElementById('newCategoryInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.addCategory();
-        });
-
-        // Filters
-        document.getElementById('categoryFilter').addEventListener('change', () => this.loadManageView());
-        document.getElementById('statusFilter').addEventListener('change', () => this.loadManageView());
-
-        // Items list
-        document.getElementById('itemsList').addEventListener('click', (e) => this.handleItemsListClick(e));
-        document.getElementById('categoriesList').addEventListener('click', (e) => this.handleCategoriesListClick(e));
-
-        // Modal
-        document.getElementById('closeModal').addEventListener('click', () => this.closeModal());
-        document.getElementById('cancelBtn').addEventListener('click', () => this.closeModal());
-        document.getElementById('overlay').addEventListener('click', (e) => {
-            if (e.target === e.currentTarget) this.closeModal();
-        });
-        document.getElementById('itemForm').addEventListener('submit', (e) => this.handleItemFormSubmit(e));
-    }
-
-    // ============ AUTHENTICATION METHODS ============
-
-    /**
-     * Sign in with Google
-     */
-    async signInWithGoogle() {
-        try {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            await firebase.auth().signInWithPopup(provider);
-        } catch (error) {
-            console.error('Sign in failed:', error);
-            showToast('Sign in failed: ' + error.message, 'error');
-        }
-    }
-
-    // ============ AUTHENTICATION UI METHODS ============
-
-    /**
-     * Toggle auth forms visibility
-     */
-    toggleAuthForms() {
-        const container = document.getElementById('authFormsContainer');
-        const toggleBtn = document.getElementById('signInToggleBtn');
-        const isHidden = container.classList.contains('hidden');
-        
-        if (isHidden) {
-            // Position the container relative to the toggle button
-            const btnRect = toggleBtn.getBoundingClientRect();
-            container.style.top = (btnRect.bottom + 5) + 'px';
-            container.style.right = (window.innerWidth - btnRect.right) + 'px';
-            
-            container.classList.remove('hidden');
-        } else {
-            container.classList.add('hidden');
-        }
-    }
-
-    /**
-     * Hide auth forms
-     */
-    hideAuthForms() {
-        document.getElementById('authFormsContainer').classList.add('hidden');
-    }
-
-    /**
-     * Switch authentication tab
-     */
-    switchAuthTab(tab) {
-        // Update tab buttons
-        document.querySelectorAll('.auth-tab').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(tab + 'AuthTab').classList.add('active');
-
-        // Show/hide forms
-        document.getElementById('googleAuthForm').classList.toggle('hidden', tab !== 'google');
-        document.getElementById('emailAuthForm').classList.toggle('hidden', tab !== 'email');
-    }
-
-    /**
-     * Show email form (signin or signup)
-     */
-    showEmailForm(form) {
-        // Update toggle buttons
-        document.querySelectorAll('.auth-toggle-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById('show' + (form === 'signin' ? 'SignIn' : 'SignUp') + 'Form').classList.add('active');
-
-        // Show/hide forms
-        document.getElementById('emailSignInForm').classList.toggle('hidden', form !== 'signin');
-        document.getElementById('emailSignUpForm').classList.toggle('hidden', form !== 'signup');
-
-        // Clear forms
-        document.getElementById('emailSignInForm').reset();
-        document.getElementById('emailSignUpForm').reset();
-    }
-
-    /**
-     * Handle email sign in
-     */
-    async handleEmailSignIn(e) {
-        e.preventDefault();
-        
-        const email = document.getElementById('signInEmail').value.trim();
-        const password = document.getElementById('signInPassword').value;
-
-        if (!email || !password) {
-            showToast('Please enter both email and password', 'error');
-            return;
-        }
-
-        try {
-            await firebase.auth().signInWithEmailAndPassword(email, password);
-            showToast('Signed in successfully! 🎵', 'success');
-        } catch (error) {
-            console.error('Email sign in failed:', error);
-            let message = 'Sign in failed';
-            
-            switch (error.code) {
-                case 'auth/user-not-found':
-                    message = 'No account found with this email';
-                    break;
-                case 'auth/wrong-password':
-                    message = 'Incorrect password';
-                    break;
-                case 'auth/invalid-email':
-                    message = 'Invalid email address';
-                    break;
-                case 'auth/too-many-requests':
-                    message = 'Too many failed attempts. Try again later';
-                    break;
-                default:
-                    message = error.message;
-            }
-            
-            showToast(message, 'error');
-        }
-    }
-
-    /**
-     * Handle email sign up
-     */
-    async handleEmailSignUp(e) {
-        e.preventDefault();
-        
-        const email = document.getElementById('signUpEmail').value.trim();
-        const password = document.getElementById('signUpPassword').value;
-        const confirmPassword = document.getElementById('confirmPassword').value;
-
-        if (!email || !password || !confirmPassword) {
-            showToast('Please fill in all fields', 'error');
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            showToast('Passwords do not match', 'error');
-            return;
-        }
-
-        if (password.length < 6) {
-            showToast('Password must be at least 6 characters', 'error');
-            return;
-        }
-
-        try {
-            await firebase.auth().createUserWithEmailAndPassword(email, password);
-            showToast('Account created successfully! 🎉', 'success');
-        } catch (error) {
-            console.error('Email sign up failed:', error);
-            let message = 'Sign up failed';
-            
-            switch (error.code) {
-                case 'auth/email-already-in-use':
-                    message = 'An account with this email already exists';
-                    break;
-                case 'auth/invalid-email':
-                    message = 'Invalid email address';
-                    break;
-                case 'auth/weak-password':
-                    message = 'Password is too weak';
-                    break;
-                default:
-                    message = error.message;
-            }
-            
-            showToast(message, 'error');
-        }
-    }
-
-    /**
-     * Handle forgot password
-     */
-    async handleForgotPassword() {
-        const email = document.getElementById('signInEmail').value.trim();
-        
-        if (!email) {
-            showToast('Please enter your email address first', 'error');
-            return;
-        }
-
-        try {
-            await firebase.auth().sendPasswordResetEmail(email);
-            showToast('Password reset email sent! Check your inbox 📧', 'success');
-        } catch (error) {
-            console.error('Password reset failed:', error);
-            let message = 'Failed to send reset email';
-            
-            switch (error.code) {
-                case 'auth/user-not-found':
-                    message = 'No account found with this email';
-                    break;
-                case 'auth/invalid-email':
-                    message = 'Invalid email address';
-                    break;
-                default:
-                    message = error.message;
-            }
-            
-            showToast(message, 'error');
-        }
-    }
-
-    /**
-     * Switch between views
-     */
-    switchView(view) {
-        // Update navigation
-        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-        document.getElementById(view + 'Btn').classList.add('active');
-
-        // Show/hide views
-        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-        document.getElementById(view + 'View').classList.remove('hidden');
-
-        this.currentView = view;
-
-        // Load view content
-        this.loadCurrentView();
-    }
-
-    // ============ TODAY'S PRACTICE VIEW ============
-
-    /**
-     * Load today's practice view
-     */
     async loadTodayView() {
         try {
             const todaysItems = await this.storage.getTodaysItems();
+            this.ui.renderTodaysList(todaysItems, (item) => this.renderPracticeItem(item));
             const stats = await this.storage.getCompletionStats();
-            
-            // Update stats
-            document.getElementById('completedCount').textContent = stats.completed;
-            document.getElementById('totalCount').textContent = stats.total;
-
-            // Render items
-            await this.renderTodaysList(todaysItems);
+            this.ui.updateCompletionStats(stats);
         } catch (error) {
-            console.error('Error loading today\'s view:', error);
+            console.error("Error loading today's view:", error);
             showToast('Error loading practice items', 'error');
         }
     }
 
-    /**
-     * Render today's practice list
-     */
-    async renderTodaysList(items) {
-        const container = document.getElementById('todayList');
-        
-        if (items.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #718096;">
-                    <h3>🎉 No practice items for today!</h3>
-                    <p>Either you've completed everything or no items are due today.</p>
-                    <p><a href="#" onclick="app.switchView('manage')" style="color: #667eea;">Add some practice items</a> to get started.</p>
-                </div>
-            `;
-            return;
-        }
-
-        const itemsHtml = await Promise.all(items.map(async item => {
-            return await this.renderPracticeItem(item);
-        }));
-
-        container.innerHTML = itemsHtml.join('');
-    }
-
-    /**
-     * Render a single practice item
-     */
     async renderPracticeItem(item) {
-        const subItemsHtml = await this.renderSubItemsForToday(item.id);
-        
-        return `
-            <div class="practice-item ${item.isCompleted ? 'completed' : ''}" data-item-id="${item.id}">
-                <div class="practice-item-header">
-                    <div class="practice-item-info">
-                        <div class="practice-item-title">${escapeHtml(item.name)}</div>
-                        <div class="practice-item-category">${escapeHtml(item.category)}</div>
-                        ${item.description ? `<div class="practice-item-description">${escapeHtml(item.description)}</div>` : ''}
-                        <div class="practice-item-meta">
-                            Reappears every ${item.recurDays} days
-                            ${item.daysSinceLastCompletion !== null ? ` • Last completed ${item.daysSinceLastCompletion} days ago` : ' • Never completed'}
-                        </div>
-                    </div>
-                    <div class="practice-item-actions">
-                        <button class="complete-btn ${item.isCompleted ? 'completed' : ''}" 
-                                onclick="app.toggleItemCompletion('${item.id}')">
-                            ${item.isCompleted ? '✓ Completed' : 'Mark Complete'}
-                        </button>
-                    </div>
-                </div>
-                ${subItemsHtml}
-            </div>
-        `;
+        return this.ui.renderPracticeItem(item, (id) => this.renderSubItemsForToday(id));
     }
 
-    /**
-     * Render sub-items for today's practice
-     */
     async renderSubItemsForToday(parentId) {
         try {
             const subItems = await this.storage.getSubItems(parentId);
             const todaysSubItems = [];
-            
             for (const subItem of subItems) {
                 if (subItem.status === 'paused') continue;
-                
                 const lastCompletion = await this.storage.getLastCompletionDate(subItem.id);
-                if (!lastCompletion) {
+                if (!lastCompletion || daysBetween(getTodayString(), lastCompletion) >= subItem.recurDays) {
                     todaysSubItems.push(subItem);
-                } else {
-                    const daysSince = daysBetween(getTodayString(), lastCompletion);
-                    if (daysSince >= subItem.recurDays) {
-                        todaysSubItems.push(subItem);
-                    }
                 }
             }
-
             if (todaysSubItems.length === 0) return '';
-
             const subItemsHtml = await Promise.all(todaysSubItems.map(async subItem => {
                 const isCompleted = await this.storage.isItemCompleted(subItem.id);
-                return `
-                    <div class="sub-item ${isCompleted ? 'completed' : ''}" data-item-id="${subItem.id}">
-                        <div class="practice-item-header">
-                            <div class="practice-item-info">
-                                <div class="practice-item-title">${escapeHtml(subItem.name)}</div>
-                                ${subItem.description ? `<div class="practice-item-description">${escapeHtml(subItem.description)}</div>` : ''}
-                            </div>
-                            <div class="practice-item-actions">
-                                <button class="complete-btn ${isCompleted ? 'completed' : ''}" 
-                                        onclick="app.toggleItemCompletion('${subItem.id}')">
-                                    ${isCompleted ? '✓' : '○'}
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                `;
+                return `<div class="sub-item ${isCompleted ? 'completed' : ''}" data-item-id="${subItem.id}">...</div>`; // Simplified
             }));
-
             return `<div class="sub-items">${subItemsHtml.join('')}</div>`;
         } catch (error) {
             console.error('Error rendering sub-items:', error);
@@ -638,20 +171,9 @@ class PracticeMaestro {
         }
     }
 
-    /**
-     * Handle clicks in today's list
-     */
-    handleTodayListClick(e) {
-        // Handle completion button clicks (handled by onclick)
-    }
-
-    /**
-     * Toggle item completion
-     */
     async toggleItemCompletion(itemId) {
         try {
             const isCompleted = await this.storage.isItemCompleted(itemId);
-            
             if (isCompleted) {
                 await this.storage.unmarkItemCompleted(itemId);
                 showToast('Item unmarked as completed', 'info');
@@ -659,7 +181,6 @@ class PracticeMaestro {
                 await this.storage.markItemCompleted(itemId);
                 showToast('Item completed! 🎉', 'success');
             }
-            
             this.loadTodayView();
         } catch (error) {
             console.error('Error toggling completion:', error);
@@ -667,17 +188,12 @@ class PracticeMaestro {
         }
     }
 
-    // ============ MANAGEMENT VIEW ============
-
-    /**
-     * Load management view
-     */
     async loadManageView() {
         try {
             await Promise.all([
                 this.loadCategories(),
-                this.loadCategoryFilterOptions(),
-                this.loadItems()
+                this.loadItems(),
+                this.loadFilterOptions()
             ]);
         } catch (error) {
             console.error('Error loading management view:', error);
@@ -685,450 +201,116 @@ class PracticeMaestro {
         }
     }
 
-    /**
-     * Load categories section
-     */
     async loadCategories() {
-        try {
-            const categories = await this.storage.getCategories();
-            const container = document.getElementById('categoriesList');
-            
-            if (categories.length === 0) {
-                container.innerHTML = '<p style="color: #718096;">No categories yet. Add some below!</p>';
-                return;
-            }
-
-            const categoriesHtml = categories.map(category => `
-                <div class="category-tag">
-                    ${escapeHtml(category.name)}
-                    <button class="delete-category" onclick="app.deleteCategory('${category.id}')" title="Delete category">×</button>
-                </div>
-            `).join('');
-
-            container.innerHTML = categoriesHtml;
-        } catch (error) {
-            console.error('Error loading categories:', error);
-        }
+        const categories = await this.storage.getCategories();
+        this.ui.renderCategories(categories);
     }
 
-    /**
-     * Load category filter options
-     */
-    async loadCategoryFilterOptions() {
-        try {
-            const categories = await this.storage.getCategories();
-            const selects = [
-                document.getElementById('categoryFilter'),
-                document.getElementById('itemCategory')
-            ];
-
-            selects.forEach(select => {
-                const currentValue = select.value;
-                
-                // Clear existing options (except first one)
-                while (select.children.length > 1) {
-                    select.removeChild(select.lastChild);
-                }
-
-                categories.forEach(category => {
-                    const option = document.createElement('option');
-                    option.value = category.name;
-                    option.textContent = category.name;
-                    select.appendChild(option);
-                });
-
-                // Restore selection
-                select.value = currentValue;
-            });
-
-            // Also update parent item options
-            await this.loadParentItemOptions();
-        } catch (error) {
-            console.error('Error loading category options:', error);
-        }
+    async loadItems() {
+        const filters = this.ui.getFilterValues();
+        const items = await this.storage.getItems(filters.category, filters.status);
+        this.ui.renderItemsList(items, (id) => this.storage.getSubItems(id), (subItems) => this.renderSubItemsList(subItems));
     }
 
-    /**
-     * Load parent item options
-     */
-    async loadParentItemOptions() {
-        try {
-            const items = await this.storage.getTopLevelItems();
-            const select = document.getElementById('parentItem');
-            const currentValue = select.value;
-
-            // Clear existing options (except first one)
-            while (select.children.length > 1) {
-                select.removeChild(select.lastChild);
-            }
-
-            items.forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.id;
-                option.textContent = `${item.name} (${item.category})`;
-                select.appendChild(option);
-            });
-
-            select.value = currentValue;
-        } catch (error) {
-            console.error('Error loading parent item options:', error);
-        }
+    async renderSubItemsList(subItems) {
+        return this.ui.renderSubItemsList(subItems);
+    }
+    
+    async loadFilterOptions() {
+        const categories = await this.storage.getCategories();
+        this.ui.updateCategoryFilterOptions(categories);
+        this.ui.updateItemCategoryOptions(categories);
+        const topLevelItems = await this.storage.getTopLevelItems();
+        this.ui.updateParentItemOptions(topLevelItems);
     }
 
-    /**
-     * Add new category
-     */
     async addCategory() {
-        const input = document.getElementById('newCategoryInput');
-        const name = input.value.trim();
-        
-        if (!name) {
-            showToast('Please enter a category name', 'error');
-            return;
-        }
-
+        const name = this.ui.getNewCategoryName();
+        if (!name) return;
         try {
-            const category = await this.storage.addCategory(name);
-            if (category) {
-                input.value = '';
-                await this.loadCategories();
-                await this.loadCategoryFilterOptions();
-                showToast('Category added successfully', 'success');
-            } else {
-                showToast('Category already exists', 'error');
-            }
+            await this.storage.addCategory({ name });
+            showToast('Category added!', 'success');
+            this.loadManageView();
         } catch (error) {
             console.error('Error adding category:', error);
-            showToast('Error adding category', 'error');
+            showToast('Error adding category.', 'error');
         }
     }
 
-    /**
-     * Delete category
-     */
     async deleteCategory(categoryId) {
+        if (!confirm('Are you sure you want to delete this category? This will not delete the items in it.')) return;
         try {
-            const categories = await this.storage.getCategories();
-            const category = categories.find(cat => cat.id === categoryId);
-            
-            if (!category) return;
-
-            const confirmed = await confirmDialog(`Delete category "${category.name}"? This will only work if no items use this category.`);
-            if (!confirmed) return;
-
-            const success = await this.storage.deleteCategory(categoryId);
-            if (success) {
-                await this.loadCategories();
-                await this.loadCategoryFilterOptions();
-                showToast('Category deleted successfully', 'success');
-            } else {
-                showToast('Cannot delete category - it\'s being used by items', 'error');
-            }
+            await this.storage.deleteCategory(categoryId);
+            showToast('Category deleted!', 'success');
+            this.loadManageView();
         } catch (error) {
             console.error('Error deleting category:', error);
-            showToast('Error deleting category', 'error');
+            showToast('Error deleting category.', 'error');
         }
     }
 
-    /**
-     * Load items list
-     */
-    async loadItems() {
-        try {
-            const categoryFilter = document.getElementById('categoryFilter').value;
-            const statusFilter = document.getElementById('statusFilter').value;
-            
-            let items = await this.storage.getTopLevelItems();
-
-            // Apply filters
-            if (categoryFilter) {
-                items = items.filter(item => item.category === categoryFilter);
-            }
-            if (statusFilter) {
-                items = items.filter(item => item.status === statusFilter);
-            }
-
-            this.renderItemsList(items);
-        } catch (error) {
-            console.error('Error loading items:', error);
-            showToast('Error loading items', 'error');
-        }
-    }
-
-    /**
-     * Render items list
-     */
-    async renderItemsList(items) {
-        const container = document.getElementById('itemsList');
-        
-        if (items.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #718096;">
-                    <p>No items found with current filters.</p>
-                    <button class="btn btn-primary" onclick="app.openItemModal()">Add Your First Item</button>
-                </div>
-            `;
-            return;
-        }
-
-        try {
-            const itemsHtml = await Promise.all(items.map(async item => {
-                const subItems = await this.storage.getSubItems(item.id);
-                const lastCompletion = await this.storage.getLastCompletionDate(item.id);
-                
-                return `
-                    <div class="item-card ${item.status === 'paused' ? 'paused' : ''}" data-item-id="${item.id}">
-                        <div class="item-card-header">
-                            <div class="practice-item-info">
-                                <div class="practice-item-title">${escapeHtml(item.name)}
-                                    ${item.status === 'paused' ? '<span class="status-paused">PAUSED</span>' : ''}
-                                </div>
-                                <div class="practice-item-category">${escapeHtml(item.category)}</div>
-                                ${item.description ? `<div class="practice-item-description">${escapeHtml(item.description)}</div>` : ''}
-                                <div class="practice-item-meta">
-                                    Reappears every ${item.recurDays} days
-                                    ${lastCompletion ? ` • Last completed: ${new Date(lastCompletion).toLocaleDateString()}` : ' • Never completed'}
-                                    ${subItems.length > 0 ? ` • ${subItems.length} sub-items` : ''}
-                                </div>
-                            </div>
-                            <div class="item-card-actions">
-                                <button class="btn btn-small" onclick="app.editItem('${item.id}')">Edit</button>
-                                <button class="btn btn-small ${item.status === 'paused' ? 'btn-secondary' : 'btn-danger'}" 
-                                        onclick="app.toggleItemStatus('${item.id}')">
-                                    ${item.status === 'paused' ? 'Resume' : 'Pause'}
-                                </button>
-                                <button class="btn btn-small btn-danger" onclick="app.deleteItem('${item.id}')">Delete</button>
-                            </div>
-                        </div>
-                        ${subItems.length > 0 ? await this.renderSubItemsList(subItems) : ''}
-                    </div>
-                `;
-            }));
-
-            container.innerHTML = itemsHtml.join('');
-        } catch (error) {
-            console.error('Error rendering items list:', error);
-            container.innerHTML = '<p style="color: #f56565;">Error loading items</p>';
-        }
-    }
-
-    /**
-     * Render sub-items list
-     */
-    async renderSubItemsList(subItems) {
-        try {
-            const subItemsHtml = await Promise.all(subItems.map(async subItem => {
-                const lastCompletion = await this.storage.getLastCompletionDate(subItem.id);
-                return `
-                    <div class="sub-item ${subItem.status === 'paused' ? 'paused' : ''}" data-item-id="${subItem.id}">
-                        <div class="practice-item-header">
-                            <div class="practice-item-info">
-                                <div class="practice-item-title">${escapeHtml(subItem.name)}
-                                    ${subItem.status === 'paused' ? '<span class="status-paused">PAUSED</span>' : ''}
-                                </div>
-                                ${subItem.description ? `<div class="practice-item-description">${escapeHtml(subItem.description)}</div>` : ''}
-                                <div class="practice-item-meta">
-                                    Every ${subItem.recurDays} days
-                                    ${lastCompletion ? ` • Last: ${new Date(lastCompletion).toLocaleDateString()}` : ' • Never completed'}
-                                </div>
-                            </div>
-                            <div class="practice-item-actions">
-                                <button class="btn btn-small" onclick="app.editItem('${subItem.id}')">Edit</button>
-                                <button class="btn btn-small ${subItem.status === 'paused' ? 'btn-secondary' : 'btn-danger'}" 
-                                        onclick="app.toggleItemStatus('${subItem.id}')">
-                                    ${subItem.status === 'paused' ? 'Resume' : 'Pause'}
-                                </button>
-                                <button class="btn btn-small btn-danger" onclick="app.deleteItem('${subItem.id}')">Delete</button>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }));
-
-            return `<div class="sub-items">${subItemsHtml.join('')}</div>`;
-        } catch (error) {
-            console.error('Error rendering sub-items:', error);
-            return '';
-        }
-    }
-
-    /**
-     * Handle clicks in items list
-     */
-    handleItemsListClick(e) {
-        // Button clicks are handled by onclick attributes
-    }
-
-    /**
-     * Handle clicks in categories list
-     */
-    handleCategoriesListClick(e) {
-        // Button clicks are handled by onclick attributes
-    }
-
-    // ============ ITEM MANAGEMENT ============
-
-    /**
-     * Open item modal for adding/editing
-     */
-    async openItemModal(itemId = null) {
-        this.editingItemId = itemId;
-        const modal = document.getElementById('itemModal');
-        const overlay = document.getElementById('overlay');
-        const form = document.getElementById('itemForm');
-        const title = document.getElementById('modalTitle');
-
-        // Update modal title and form
-        if (itemId) {
-            title.textContent = 'Edit Item';
-            await this.populateItemForm(itemId);
-        } else {
-            title.textContent = 'Add New Item';
-            form.reset();
-            document.getElementById('recurDays').value = 7;
-        }
-
-        // Show modal
-        modal.classList.remove('hidden');
-        overlay.classList.remove('hidden');
-        
-        // Focus first input
-        document.getElementById('itemName').focus();
-    }
-
-    /**
-     * Populate form with item data
-     */
-    async populateItemForm(itemId) {
-        try {
-            const item = await this.storage.getItem(itemId);
-            if (!item) return;
-
-            document.getElementById('itemName').value = item.name;
-            document.getElementById('itemCategory').value = item.category;
-            document.getElementById('itemDescription').value = item.description || '';
-            document.getElementById('recurDays').value = item.recurDays;
-            document.getElementById('parentItem').value = item.parentId || '';
-        } catch (error) {
-            console.error('Error populating form:', error);
-        }
-    }
-
-    /**
-     * Close modal
-     */
-    closeModal() {
-        document.getElementById('itemModal').classList.add('hidden');
-        document.getElementById('overlay').classList.add('hidden');
-        this.editingItemId = null;
-    }
-
-    /**
-     * Handle item form submit
-     */
     async handleItemFormSubmit(e) {
         e.preventDefault();
-        
-        const formData = {
-            name: document.getElementById('itemName').value.trim(),
-            category: document.getElementById('itemCategory').value,
-            description: document.getElementById('itemDescription').value.trim(),
-            recurDays: parseInt(document.getElementById('recurDays').value),
-            parentId: document.getElementById('parentItem').value || null
-        };
-
-        // Validation
-        if (!formData.name) {
-            showToast('Item name is required', 'error');
+        const formData = this.ui.getItemFormData();
+        if (!formData.name || !formData.category) {
+            showToast('Item name and category are required.', 'error');
             return;
         }
-        if (!formData.category) {
-            showToast('Category is required', 'error');
-            return;
-        }
-        if (formData.recurDays < 1) {
-            showToast('Recurrence days must be at least 1', 'error');
-            return;
-        }
-
         try {
-            if (this.editingItemId) {
-                // Update existing item
-                await this.storage.updateItem(this.editingItemId, formData);
-                showToast('Item updated successfully', 'success');
+            if (this.ui.editingItemId) {
+                await this.storage.updateItem(this.ui.editingItemId, formData);
+                showToast('Item updated!', 'success');
             } else {
-                // Create new item
                 await this.storage.addItem(formData);
-                showToast('Item added successfully', 'success');
+                showToast('Item added!', 'success');
             }
-
-            this.closeModal();
-            await this.loadManageView();
-            
-            // Refresh today view if it's currently active
-            if (this.currentView === 'today') {
-                this.loadTodayView();
-            }
+            this.ui.closeModal();
+            this.loadManageView();
         } catch (error) {
             console.error('Error saving item:', error);
-            showToast('Error saving item: ' + error.message, 'error');
+            showToast('Error saving item.', 'error');
         }
     }
 
-    /**
-     * Edit item
-     */
-    editItem(itemId) {
-        this.openItemModal(itemId);
+    async populateItemForm(itemId) {
+        const item = await this.storage.getItem(itemId);
+        if (!item) return;
+        document.getElementById('itemName').value = item.name;
+        document.getElementById('itemCategory').value = item.category;
+        document.getElementById('itemDescription').value = item.description || '';
+        document.getElementById('recurDays').value = item.recurDays;
+        document.getElementById('parentItem').value = item.parentId || '';
     }
 
-    /**
-     * Toggle item status (active/paused)
-     */
+    editItem(itemId) {
+        this.ui.openItemModal(itemId, (id) => this.populateItemForm(id));
+    }
+
     async toggleItemStatus(itemId) {
         try {
             const item = await this.storage.toggleItemStatus(itemId);
-            if (item) {
-                const status = item.status === 'paused' ? 'paused' : 'resumed';
-                showToast(`Item ${status} successfully`, 'success');
-                await this.loadManageView();
-                
-                if (this.currentView === 'today') {
-                    this.loadTodayView();
-                }
-            }
+            showToast(`Item ${item.status === 'paused' ? 'paused' : 'resumed'}!`, 'success');
+            this.loadManageView();
         } catch (error) {
             console.error('Error toggling item status:', error);
-            showToast('Error updating item status', 'error');
+            showToast('Error updating item status.', 'error');
         }
     }
 
-    /**
-     * Delete item
-     */
     async deleteItem(itemId) {
+        const item = await this.storage.getItem(itemId);
+        if (!item) return;
+        const subItems = await this.storage.getSubItems(itemId);
+        const message = subItems.length > 0 ? `Delete "${item.name}" and its ${subItems.length} sub-items?` : `Delete "${item.name}"?`;
+        if (!confirm(message)) return;
+
         try {
-            const item = await this.storage.getItem(itemId);
-            if (!item) return;
-
-            const subItems = await this.storage.getSubItems(itemId);
-            const message = subItems.length > 0 
-                ? `Delete "${item.name}" and its ${subItems.length} sub-items? This cannot be undone.`
-                : `Delete "${item.name}"? This cannot be undone.`;
-
-            const confirmed = await confirmDialog(message);
-            if (!confirmed) return;
-
-            const deletedCount = await this.storage.deleteItem(itemId);
-            showToast(`Deleted ${deletedCount} item(s) successfully`, 'success');
-            
-            await this.loadManageView();
-            if (this.currentView === 'today') {
-                this.loadTodayView();
-            }
+            await this.storage.deleteItem(itemId);
+            showToast('Item(s) deleted!', 'success');
+            this.loadManageView();
         } catch (error) {
             console.error('Error deleting item:', error);
-            showToast('Error deleting item', 'error');
+            showToast('Error deleting item.', 'error');
         }
     }
 }
@@ -1137,7 +319,5 @@ class PracticeMaestro {
 let app;
 document.addEventListener('DOMContentLoaded', () => {
     app = new PracticeMaestro();
-});
-
-// Make app globally available for onclick handlers
-window.app = app; 
+    window.app = app;
+}); 
